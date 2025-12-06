@@ -3,6 +3,8 @@ langchain>=0.3.10
 langchain_chroma==0.1.4
 chromadb==0.4.24
 llama-index==0.11.0
+llama-index-embeddings-huggingface==0.6.1
+llama_index_embeddings_langchain==0.4.1
 uvicorn[standard]==0.24.0
 python-multipart>=0.0.7
 openai>=1.14.0
@@ -20,3 +22,4 @@ sentence-transformers==5.1.2
 threadpoolctl==3.6.0
 torch==2.2.2
 notebook
+tiktoken==0.5.1
