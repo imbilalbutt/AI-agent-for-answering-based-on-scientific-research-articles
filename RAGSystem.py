@@ -1,4 +1,8 @@
 import os
+os.environ["LANGCHAIN_TELEMETRY"] = "false"
+
+from dotenv import load_dotenv
+load_dotenv()
 import glob
 from typing import List
 import logging
@@ -11,6 +15,7 @@ from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.llms import OpenAI
 from langchain.schema import Document
+
 
 # Optional: Import llama_index if you want to use it alongside LangChain
 try:
@@ -33,9 +38,34 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def main():
+    """
+    Main function to run the RAG system.
+    """
+
+
+    # Check for OpenAI API key
+    if "OPENAI_API_KEY" not in os.environ:
+        raise ValueError("Please set OPENAI_API_KEY environment variable")
+
+    # Initialize RAG system
+    rag_system = RAGSystem(
+        docs_dir="docs/",
+        embedding_model="text-embedding-ada-002",
+        llm_model="gpt-3.5-turbo",
+        persist_directory="./chroma_db"
+    )
+
+    # Initialize the system
+    rag_system.initialize()
+
+    # Run interactive query session
+    rag_system.interactive_query()
+
+
 class RAGSystem:
     def __init__(self,
-                 docs_dir: str = "/src/docs",
+                 docs_dir: str = "docs/",
                  embedding_model: str = "text-embedding-ada-002",
                  llm_model: str = "gpt-3.5-turbo",
                  persist_directory: str = "./chroma_db"):
@@ -316,29 +346,6 @@ class RAGSystem:
                 break
             except Exception as e:
                 print(f"Error: {str(e)}")
-
-
-def main():
-    """
-    Main function to run the RAG system.
-    """
-    # Check for OpenAI API key
-    if "OPENAI_API_KEY" not in os.environ:
-        raise ValueError("Please set OPENAI_API_KEY environment variable")
-
-    # Initialize RAG system
-    rag_system = RAGSystem(
-        docs_dir="/src/docs",
-        embedding_model="text-embedding-ada-002",
-        llm_model="gpt-3.5-turbo",
-        persist_directory="./chroma_db"
-    )
-
-    # Initialize the system
-    rag_system.initialize()
-
-    # Run interactive query session
-    rag_system.interactive_query()
 
 
 if __name__ == "__main__":
