@@ -1,3 +1,4 @@
+# fastapi_rag.py
 import os
 import uuid
 from typing import List, Optional
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 # Import the RAG system from previous implementation
-from rag_system import RAGSystem
+import RAGSystem
 
 
 # Define Pydantic models for request/response

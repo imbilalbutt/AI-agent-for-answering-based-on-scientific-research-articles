@@ -51,10 +51,12 @@ def main():
 
     # Initialize RAG system
     rag_system = RAGSystem(
-        docs_dir="docs/",
+        docs_dir="../docs/",
         embedding_model="sentence-transformers/all-MiniLM-L6-v2", # "text-embedding-ada-002",
         llm_model="",
         persist_directory="./chroma_db5",
+        llm_temperature = 0.0,
+        llm_max_tokens = 512,
         use_hugging_face=True, hugging_face_model = "google/flan-t5-small", hf_task = "text2text-generation",
         use_ollama= False, ollama_model = "" )
 
@@ -71,6 +73,8 @@ class RAGSystem:
                  embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
                  llm_model: str = "gpt-3.5-turbo",
                  persist_directory: str = "./chroma_db",
+                 llm_temperature: float = 0.1,
+                 llm_max_tokens: int = 512,
                  use_hugging_face: bool = False, hugging_face_model: str = "google/flan-t5-small",
                  hf_task:str = "text2text-generation",
                  use_ollama: bool = False, ollama_model: str = "tinyllama"):
@@ -86,19 +90,26 @@ class RAGSystem:
         self.docs_dir = docs_dir
         self.embedding_model = embedding_model
         self.llm = None
+
+        if use_hugging_face and not hugging_face_model:
+            raise ValueError("hugging_face_model must be specified when use_hugging_face=True")
+
+        if use_ollama and not ollama_model:
+            raise ValueError("ollama_model must be specified when use_ollama=True")
+
         if use_hugging_face:
             from transformers import pipeline
             from langchain.llms import HuggingFacePipeline
 
             # Example: Flan-T5 small (seq2seq) for question answering
-            hf_pipeline = pipeline(task=hf_task, model=hugging_face_model, device=0, max_length=512)
+            hf_pipeline = pipeline(task=hf_task, model=hugging_face_model, device=0, max_length=llm_max_tokens)
             self.llm = HuggingFacePipeline(pipeline=hf_pipeline)
 
         elif use_ollama:
             from langchain_community.llms import Ollama
             # Use Ollama LLM
             self.llm = Ollama(model= ollama_model, # "tinyllama",  # "llama3.2",  "llama3.1:8b",
-                temperature=0.1
+                temperature=llm_temperature
             )
         else:
             self.llm = llm_model
@@ -216,7 +227,7 @@ class RAGSystem:
                 llm=self.llm,
                 chain_type="stuff",
                 retriever=self.retriever,
-                return_source_documents=True  # Optional: to see source docs
+                return_source_documents=True
             )
         else:
             self.qa_chain = RetrievalQA.from_chain_type(

@@ -3,7 +3,7 @@ version: '3.8'
 
 services:
   rag-api:
-    build: .
+    build: ..
     container_name: rag-fastapi
     ports:
       - "8000:8000"
