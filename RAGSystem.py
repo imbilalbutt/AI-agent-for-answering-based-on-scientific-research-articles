@@ -15,6 +15,7 @@ from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.llms import OpenAI
 from langchain.schema import Document
+from langchain.embeddings import HuggingFaceEmbeddings
 
 
 # Optional: Import llama_index if you want to use it alongside LangChain
@@ -51,10 +52,11 @@ def main():
     # Initialize RAG system
     rag_system = RAGSystem(
         docs_dir="docs/",
-        embedding_model="text-embedding-ada-002",
-        llm_model="gpt-3.5-turbo",
-        persist_directory="./chroma_db"
-    )
+        embedding_model="sentence-transformers/all-MiniLM-L6-v2", # "text-embedding-ada-002",
+        llm_model="",
+        persist_directory="./chroma_db5",
+        use_hugging_face=True, hugging_face_model = "google/flan-t5-small", hf_task = "text2text-generation",
+        use_ollama= False, ollama_model = "" )
 
     # Initialize the system
     rag_system.initialize()
@@ -66,25 +68,45 @@ def main():
 class RAGSystem:
     def __init__(self,
                  docs_dir: str = "docs/",
-                 embedding_model: str = "text-embedding-ada-002",
+                 embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
                  llm_model: str = "gpt-3.5-turbo",
-                 persist_directory: str = "./chroma_db"):
+                 persist_directory: str = "./chroma_db",
+                 use_hugging_face: bool = False, hugging_face_model: str = "google/flan-t5-small",
+                 hf_task:str = "text2text-generation",
+                 use_ollama: bool = False, ollama_model: str = "tinyllama"):
         """
         Initialize the RAG system.
 
         Args:
             docs_dir: Directory containing PDF files
-            embedding_model: OpenAI embedding model name
-            llm_model: OpenAI LLM model name
+            embedding_model: Embedding model name
+            llm_model: LLM model name
             persist_directory: Directory to persist ChromaDB
         """
         self.docs_dir = docs_dir
         self.embedding_model = embedding_model
-        self.llm_model = llm_model
+        self.llm = None
+        if use_hugging_face:
+            from transformers import pipeline
+            from langchain.llms import HuggingFacePipeline
+
+            # Example: Flan-T5 small (seq2seq) for question answering
+            hf_pipeline = pipeline(task=hf_task, model=hugging_face_model, device=0, max_length=512)
+            self.llm = HuggingFacePipeline(pipeline=hf_pipeline)
+
+        elif use_ollama:
+            from langchain_community.llms import Ollama
+            # Use Ollama LLM
+            self.llm = Ollama(model= ollama_model, # "tinyllama",  # "llama3.2",  "llama3.1:8b",
+                temperature=0.1
+            )
+        else:
+            self.llm = llm_model
         self.persist_directory = persist_directory
 
         # Initialize embeddings
-        self.embeddings = OpenAIEmbeddings(model=embedding_model)
+        # self.embeddings = OpenAIEmbeddings(model=embedding_model)
+        self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
 
         # Initialize components (will be set later)
         self.vector_store = None
@@ -160,24 +182,22 @@ class RAGSystem:
 
         return chunked_documents
 
-    def create_vector_store(self, documents: List[Document]):
+    def create_vector_store(self, documents_or_chunks: List[Document]):
         """
         Create and persist vector store from documents.
 
         Args:
-            documents: List of Document objects
+            documents_or_chunks: List of Document objects or split chunks
         """
         logger.info("Creating vector store...")
 
         # Create Chroma vector store
         self.vector_store = Chroma.from_documents(
-            documents=documents,
+            documents=documents_or_chunks,
             embedding=self.embeddings,
             persist_directory=self.persist_directory
         )
 
-        # Persist the database
-        self.vector_store.persist()
         logger.info(f"Vector store created and persisted to {self.persist_directory}")
 
         # Create retriever
@@ -191,48 +211,56 @@ class RAGSystem:
         """
         logger.info("Creating QA chain...")
 
-        self.qa_chain = RetrievalQA.from_chain_type(
-            llm=OpenAI(model=self.llm_model, temperature=0),
-            chain_type="stuff",
-            retriever=self.retriever,
-            return_source_documents=True,
-            verbose=True
-        )
+        if self.llm is not None:
+            self.qa_chain = RetrievalQA.from_chain_type(
+                llm=self.llm,
+                chain_type="stuff",
+                retriever=self.retriever,
+                return_source_documents=True  # Optional: to see source docs
+            )
+        else:
+            self.qa_chain = RetrievalQA.from_chain_type(
+                llm=OpenAI(model=self.llm_model, temperature=0),
+                chain_type="stuff",
+                retriever=self.retriever,
+                return_source_documents=True,
+                verbose=True
+            )
         logger.info("QA chain created successfully")
 
-    def setup_llama_index(self):
-        """
-        Optional: Setup LlamaIndex alongside LangChain.
-        This provides an alternative indexing approach.
-        """
-        if not HAVE_LLAMA_INDEX:
-            logger.warning("LlamaIndex not available. Skipping LlamaIndex setup.")
-            return None
-
-        logger.info("Setting up LlamaIndex...")
-
-        # Load documents with LlamaIndex
-        documents = SimpleDirectoryReader(self.docs_dir).load_data()
-
-        # Setup Chroma vector store for LlamaIndex
-        chroma_client = chromadb.PersistentClient(path=self.persist_directory)
-        chroma_collection = chroma_client.create_collection("llama_index_collection")
-
-        vector_store = ChromaVectorStore(
-            chroma_collection=chroma_collection,
-            embed_model=self.embeddings
-        )
-
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-        # Create index
-        index = GPTVectorStoreIndex.from_documents(
-            documents,
-            storage_context=storage_context
-        )
-
-        logger.info("LlamaIndex setup complete")
-        return index
+    # def setup_llama_index(self):
+    #     """
+    #     Optional: Setup LlamaIndex alongside LangChain.
+    #     This provides an alternative indexing approach.
+    #     """
+    #     if not HAVE_LLAMA_INDEX:
+    #         logger.warning("LlamaIndex not available. Skipping LlamaIndex setup.")
+    #         return None
+    #
+    #     logger.info("Setting up LlamaIndex...")
+    #
+    #     # Load documents with LlamaIndex
+    #     documents = SimpleDirectoryReader(self.docs_dir).load_data()
+    #
+    #     # Setup Chroma vector store for LlamaIndex
+    #     chroma_client = chromadb.PersistentClient(path=self.persist_directory)
+    #     chroma_collection = chroma_client.create_collection("llama_index_collection")
+    #
+    #     vector_store = ChromaVectorStore(
+    #         chroma_collection=chroma_collection,
+    #         embed_model=self.embeddings
+    #     )
+    #
+    #     storage_context = StorageContext.from_defaults(vector_store=vector_store)
+    #
+    #     # Create index
+    #     index = GPTVectorStoreIndex.from_documents(
+    #         documents,
+    #         storage_context=storage_context
+    #     )
+    #
+    #     logger.info("LlamaIndex setup complete")
+    #     return index
 
     def initialize(self):
         """
@@ -253,8 +281,8 @@ class RAGSystem:
         self.create_qa_chain()
 
         # Step 5: Optional - Setup LlamaIndex
-        if HAVE_LLAMA_INDEX:
-            self.llama_index = self.setup_llama_index()
+        # if HAVE_LLAMA_INDEX:
+        #     self.llama_index = self.setup_llama_index()
 
         logger.info("RAG system initialized successfully")
 
@@ -275,7 +303,7 @@ class RAGSystem:
 
         try:
             # Get response from QA chain
-            result = self.qa_chain({"query": question})
+            result = self.qa_chain.invoke({"query": question}) # qa_chain({"query": question})
 
             # Format response
             response = {
@@ -349,7 +377,4 @@ class RAGSystem:
 
 
 if __name__ == "__main__":
-    # Install required packages if not already installed
-    # pip install langchain openai chromadb pypdf
-
     main()
