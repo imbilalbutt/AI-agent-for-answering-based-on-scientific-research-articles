@@ -162,19 +162,19 @@ RELOAD=false
 
 1. **Basic RAG with LangChain**:
 ```python
-# Open and run RAG-with-LangChain.ipynb
+# Open and run LangChain-RAG.ipynb
 # Supports OpenAI, Ollama, and HuggingFace models
 ```
 
 2. **Pure HuggingFace Implementation**:
 ```python
-# Open RAG-with-HuggingFace.ipynb
+# Open LangChain-RAG-using-HuggingFace.ipynb
 # Uses local models only, no API dependencies
 ```
 
 3. **Modular Function-Based RAG**:
 ```python
-# Open RAG-with-LangChain-with-functions.ipynb
+# Open LangChain-RAG-functions.ipynb
 # Clean, reusable function-based architecture
 ```
 
