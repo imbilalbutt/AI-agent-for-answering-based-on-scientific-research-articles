@@ -162,7 +162,7 @@ RELOAD=false
 
 1. **Basic RAG with LangChain**:
 ```python
-# Open and run LangChain-RAG.ipynb
+# Open and run LangChain-RAG_Question_Answering.ipynb
 # Supports OpenAI, Ollama, and HuggingFace models
 ```
 
