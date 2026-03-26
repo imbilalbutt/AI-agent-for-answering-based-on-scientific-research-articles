@@ -1,24 +1,38 @@
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain.agents import create_tool_calling_agent, AgentExecutor
-from AI_Agents.Web_Search_AI_agent.tools import search_tool, wiki_tool, save_tool
-# from langchain.tools import tool
+from tools import search_tool, wiki_tool, save_tool
 
 load_dotenv()
-llm = ChatOpenAI(model = "gpt-3.5-turbo")
-llm2= ChatAnthropic(model="claude-3-5-sonnet-20241022")
+
+from langchain_ollama import ChatOllama
+chat_model = ChatOllama(model="llama3.2") 
 
 class ResearchResponse(BaseModel):
-    topic: str
-    summary: str
-    sources: list[str]
-    tools_used: list[str]
+    title: str
+    content: str
+    text: str
+    research_type: str = Field(description="The type of research conducted")
+    category: str
 
-prompt_template = ChatPromptTemplate()
+    def get_content(self):
+        return self.content
+
+    def get_text(self):
+        return self.text
+
+    def get_title(self):
+        return self.title
+
+    def get_type(self):
+        return self._type
+
+    def get_category(self):
+        return self.category
+
+
 parser = PydanticOutputParser(pydantic_object=ResearchResponse)
 
 prompt = ChatPromptTemplate.from_messages(
@@ -39,19 +53,25 @@ prompt = ChatPromptTemplate.from_messages(
 
 tools = [search_tool, wiki_tool, save_tool]
 agent = create_tool_calling_agent(
-    llm = llm,
+    # llm = llm,
+    llm=chat_model,
     prompt = prompt,
     tools = tools
 )
 
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-query = input("What can I help you research?")
-raw_response = agent_executor.invoke({"query" : query})
-
+query = input("What can I help you research? ")
+raw_response = agent_executor.invoke({"query": query, "chat_history": []})
 # raw_response = agent_executor.invoke({"query" : "What is the capital of Pakistan?"})
 
+
 try:
-    structured_response = parser.parse(raw_response.get("output")[0]["text"])
-    print(structured_response)
+    structured_response = parser.parse(raw_response.get("output"))
+    # Access fields directly using dot notation
+    print("Title:", structured_response.title)
+    print("Content:", structured_response.content)
+
 except Exception as e:
-    print("Error parsing response" ,e, "Raw response - ", raw_response)
+    print("Error parsing response:", e)
+    print("Raw response:", raw_response)
+

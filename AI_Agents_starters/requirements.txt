@@ -16,3 +16,4 @@ crewai
 boto3
 langchain-ollama
 langchain-huggingface
+streamlit
